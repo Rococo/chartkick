@@ -13,7 +13,7 @@
   'use strict';
 
   var Chartkick, ISO8601_PATTERN, DECIMAL_SEPARATOR, defaultOptions, hideLegend,
-    setMin, setMax, setStacked, jsOptions, loaded, waitForLoaded, setBarMin, setBarMax, createDataTable, resize;
+    setMin, setMax, setStacked, jsOptions, loaded, waitForLoaded, setBarMin, setBarMax, createDataTable, createDateMoment, resize;
 
   // only functions that need defined specific to charting library
   var renderLineChart, renderPieChart, renderColumnChart, renderBarChart, renderAreaChart;
@@ -466,30 +466,66 @@
 
     jsOptions = jsOptionsFunc(defaultOptions, hideLegend, setMin, setMax, setStacked);
 
+    createDateMoment = function(date) {
+        var d = date.getDate();
+        var m = date.getMonth();
+        var y = date.getFullYear();
+        var h = date.getHours();
+        return moment([y, m, d, h, 0, 0, 0]);
+    }
+
     // cant use object as key
     createDataTable = function (series, columnType) {
       var data = new google.visualization.DataTable();
       data.addColumn(columnType, "");
 
       var i, j, s, d, key, rows = [];
+      var previous = null;
+      var time = true;
+
       for (i = 0; i < series.length; i++) {
         s = series[i];
         data.addColumn("number", s.name);
 
         for (j = 0; j < s.data.length; j++) {
           d = s.data[j];
-          key = (columnType === "datetime") ? d[0].getTime() : d[0];
+          if (columnType === "datetime"){
+            key = d[0].getTime();
+            if(previous == null){
+               previous = d[0].getDay();
+            }else{
+               if (previous != d[0].getDay()){
+                 time = false;
+               }
+            }
+          }else{
+            key = d[0];
+          }
           if (!rows[key]) {
             rows[key] = new Array(series.length);
           }
           rows[key][i] = toFloat(d[1]);
+        }
+
+        if(columnType === "datetime"){
+          data.addColumn({'type': 'string', 'role': 'tooltip'});
         }
       }
 
       var rows2 = [];
       for (i in rows) {
         if (rows.hasOwnProperty(i)) {
-          rows2.push([(columnType === "datetime") ? new Date(toFloat(i)) : i].concat(rows[i]));
+          if(columnType === "datetime"){
+            d = new Date(toFloat(i))
+            if(time){
+              tt = createDateMoment(d).format("MMM Do, ha") + ' : ' +rows[i]
+            }else{
+              tt = createDateMoment(d).format("ddd, MMM Do") + ' : ' +rows[i]
+            }
+            rows2.push([d].concat(rows[i]).concat(tt));
+          }else{
+            rows2.push([i].concat(rows[i]));
+          }
         }
       }
       if (columnType === "datetime") {
